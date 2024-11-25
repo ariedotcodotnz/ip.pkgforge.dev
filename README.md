@@ -25,7 +25,7 @@ curl -qfsSL "https://ip.pkgforge.dev/csv" | column -ts ','
 > Returns HTML `IPv4 | IPv6`, `GeoInfo` & `User-Agent`
 > <details><summary><code>Example Response</code></summary>
 >
-> ![image](https://github.com/pkgforge-dev/ip.pkgforge.dev/assets/58171889/39b9dd85-a2f0-4eb1-90c7-961ba6bc98f2)
+> ![image](https://github.com/user-attachments/assets/6ed5518a-9578-422b-894c-fd3ae338a477)
 > 
 > </details>
 ---
