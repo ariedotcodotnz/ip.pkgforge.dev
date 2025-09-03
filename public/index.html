@@ -1,1 +1,33 @@
-<!DOCTYPE html><html><head><title>Test Site</title></head><body><h1>Welcome to Test Static Site</h1><p>This is a test page.</p></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Static Site Demo</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <header>
+        <h1>Welcome to Static Site Demo</h1>
+        <nav>
+            <a href="/">Home</a>
+            <a href="/about">About</a>
+            <a href="/contact">Contact</a>
+        </nav>
+    </header>
+    <main>
+        <p>This is a demonstration static site hosted on Cloudflare Workers with visitor logging.</p>
+        <p>All requests to this site are logged without the visitor knowing!</p>
+        <ul>
+            <li>✅ Serves HTML files</li>
+            <li>✅ Serves CSS files</li>
+            <li>✅ Handles directory requests (index.html)</li>
+            <li>✅ Logs all visitor activity</li>
+            <li>✅ Works with any static site structure</li>
+        </ul>
+    </main>
+    <footer>
+        <p>Powered by Cloudflare Workers | <a href="/json">View your IP info</a></p>
+    </footer>
+</body>
+</html>

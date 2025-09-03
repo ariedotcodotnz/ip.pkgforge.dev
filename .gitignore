@@ -175,7 +175,11 @@ dist
 .dev.vars
 .wrangler/
 
+# Static site build artifacts
+static-files.js
+
 # Test files
 test_*.js
 test_*.sh
 *.backup
+*.original
