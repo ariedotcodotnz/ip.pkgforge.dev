@@ -1,4 +1,17 @@
-// plagiarized from: https://github.com/ccbikai/ip-api
+// Enhanced Cloudflare Worker with visitor logging and static site hosting
+// Based on: https://github.com/ccbikai/ip-api
+
+// Generate a deterministic admin path based on timestamp (this should be kept secret)
+// In production, this should be an environment variable
+const ADMIN_PATH = '/admin-' + btoa(Date.now().toString()).substring(0, 10).toLowerCase().replace(/[^a-z0-9]/g, '');
+console.log('Admin panel accessible at:', ADMIN_PATH);
+
+// Static files map
+const STATIC_FILES = {
+  '/': '/static/index.html',
+  '/home': '/static/index.html',
+  '/index.html': '/static/index.html'
+};
 
 // func to get flags
 var EMOJI_FLAG_UNICODE_STARTING_POSITION = 127397;
@@ -11,8 +24,521 @@ function getFlag(countryCode) {
   );
 }
 
+// Function to extract comprehensive headers from request
+function extractHeaders(request) {
+  const headers = {};
+  
+  // Standard headers
+  headers.user_agent = request.headers.get("user-agent");
+  headers.referrer = request.headers.get("referer") || request.headers.get("referrer");
+  headers.accept_language = request.headers.get("accept-language");
+  headers.host = request.headers.get("host");
+  
+  // Cloudflare specific headers
+  headers.cf_connecting_ip = request.headers.get("cf-connecting-ip");
+  headers.cf_ipcountry = request.headers.get("cf-ipcountry");
+  headers.cf_ray = request.headers.get("cf-ray");
+  headers.x_real_ip = request.headers.get("x-real-ip");
+  headers.x_forwarded_for = request.headers.get("x-forwarded-for");
+  
+  return headers;
+}
+
+// Function to log visitor data to D1 database
+async function logVisitor(request, env) {
+  try {
+    const url = new URL(request.url);
+    const headers = extractHeaders(request);
+    const timestamp = new Date().toISOString();
+    
+    // Get IP address (prioritize cf-connecting-ip, then x-real-ip)
+    const ip = headers.cf_connecting_ip || headers.x_real_ip || request.headers.get("x-real-ip");
+    
+    const logData = {
+      timestamp,
+      ip,
+      path: url.pathname,
+      query_string: url.search,
+      method: request.method,
+      user_agent: headers.user_agent,
+      referrer: headers.referrer,
+      accept_language: headers.accept_language,
+      cf_connecting_ip: headers.cf_connecting_ip,
+      cf_ipcountry: headers.cf_ipcountry,
+      cf_ray: headers.cf_ray,
+      x_real_ip: headers.x_real_ip,
+      x_forwarded_for: headers.x_forwarded_for,
+      host: headers.host,
+      city: request.cf?.city,
+      country: request.cf?.country,
+      region: request.cf?.region,
+      latitude: request.cf?.latitude,
+      longitude: request.cf?.longitude,
+      org: request.cf?.asOrganization,
+      timezone: request.cf?.timezone
+    };
+
+    // Insert into database
+    const stmt = env.DB.prepare(`
+      INSERT INTO visitor_logs (
+        timestamp, ip, path, query_string, method, user_agent, referrer, 
+        accept_language, cf_connecting_ip, cf_ipcountry, cf_ray, x_real_ip, 
+        x_forwarded_for, host, city, country, region, latitude, longitude, 
+        org, timezone
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    
+    await stmt.bind(
+      logData.timestamp, logData.ip, logData.path, logData.query_string,
+      logData.method, logData.user_agent, logData.referrer, logData.accept_language,
+      logData.cf_connecting_ip, logData.cf_ipcountry, logData.cf_ray, logData.x_real_ip,
+      logData.x_forwarded_for, logData.host, logData.city, logData.country,
+      logData.region, logData.latitude, logData.longitude, logData.org, logData.timezone
+    ).run();
+    
+  } catch (error) {
+    console.error('Error logging visitor:', error);
+  }
+}
+
+// Function to serve static files
+async function serveStaticFile(path) {
+  const staticFiles = {
+    '/static/index.html': `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IP Info Service</title>
+    <style>
+        body {
+            background-color: #0d0e0e;
+            color: #f2f0ec;
+            font-family: 'Courier New', monospace;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #3b4043;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .endpoint {
+            background-color: #1b1d1e;
+            border: 1px solid #3b4043;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .endpoint h3 {
+            color: #4ca5ff;
+            margin-top: 0;
+        }
+        .endpoint code {
+            background-color: #0d0e0e;
+            padding: 2px 6px;
+            border-radius: 3px;
+            color: #c4c1ba;
+        }
+        .example {
+            background-color: #0d0e0e;
+            padding: 10px;
+            border-radius: 3px;
+            margin: 10px 0;
+            overflow-x: auto;
+        }
+        a {
+            color: #4ca5ff;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            border-top: 1px solid #3b4043;
+            padding-top: 20px;
+            color: #c4c1ba;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🌐 IP Information Service</h1>
+        <p>Get your IP address and geolocation information in multiple formats</p>
+    </div>
+
+    <div class="endpoint">
+        <h3>Simple IP Address</h3>
+        <p>Returns your IP address in plain text:</p>
+        <div class="example">
+            <code>curl https://ip.pkgforge.dev</code>
+        </div>
+        <p><a href="/api">Try it →</a></p>
+    </div>
+
+    <div class="endpoint">
+        <h3>Detailed Information (JSON)</h3>
+        <p>Returns comprehensive information including geolocation:</p>
+        <div class="example">
+            <code>curl https://ip.pkgforge.dev/json</code>
+        </div>
+        <p><a href="/json">Try it →</a></p>
+    </div>
+
+    <div class="endpoint">
+        <h3>CSV Format</h3>
+        <p>Machine-readable CSV format:</p>
+        <div class="example">
+            <code>curl https://ip.pkgforge.dev/csv</code>
+        </div>
+        <p><a href="/csv">Try it →</a></p>
+    </div>
+
+    <div class="endpoint">
+        <h3>HTML View</h3>
+        <p>Formatted HTML table view:</p>
+        <div class="example">
+            <code>curl https://ip.pkgforge.dev/html</code>
+        </div>
+        <p><a href="/html">Try it →</a></p>
+    </div>
+
+    <div class="endpoint">
+        <h3>Other Formats</h3>
+        <p>Available formats:</p>
+        <ul>
+            <li><a href="/text">Text</a> - Key=value pairs</li>
+            <li><a href="/xml">XML</a> - Structured XML</li>
+            <li><a href="/yaml">YAML</a> - Human-readable YAML</li>
+        </ul>
+    </div>
+
+    <div class="footer">
+        <p>Powered by Cloudflare Workers | <a href="https://github.com/pkgforge-dev/ip.pkgforge.dev">Source Code</a></p>
+    </div>
+</body>
+</html>`,
+    
+    '/static/admin.html': `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visitor Logs - Admin Panel</title>
+    <style>
+        body {
+            background-color: #0d0e0e;
+            color: #f2f0ec;
+            font-family: 'Courier New', monospace;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #3b4043;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .controls {
+            background-color: #1b1d1e;
+            border: 1px solid #3b4043;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background-color: #1b1d1e;
+            border: 1px solid #3b4043;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 2em;
+            color: #4ca5ff;
+            font-weight: bold;
+        }
+        .logs-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background-color: #1b1d1e;
+        }
+        .logs-table th,
+        .logs-table td {
+            border: 1px solid #3b4043;
+            padding: 8px;
+            text-align: left;
+            font-size: 12px;
+        }
+        .logs-table th {
+            background-color: #2a2d2e;
+            color: #f2f0ec;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+        }
+        .logs-table tbody tr:hover {
+            background-color: #2a2d2e;
+        }
+        .timestamp {
+            color: #c4c1ba;
+            white-space: nowrap;
+        }
+        .path {
+            color: #4ca5ff;
+            font-weight: bold;
+        }
+        .ip {
+            color: #90c695;
+        }
+        .country {
+            color: #f4a261;
+        }
+        button {
+            background-color: #4ca5ff;
+            color: #0d0e0e;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #3a8ae8;
+        }
+        .refresh-info {
+            color: #c4c1ba;
+            font-size: 12px;
+            margin: 10px 0;
+        }
+        .loading {
+            text-align: center;
+            color: #4ca5ff;
+            margin: 20px 0;
+        }
+        .filter-input {
+            background-color: #0d0e0e;
+            color: #f2f0ec;
+            border: 1px solid #3b4043;
+            padding: 8px;
+            border-radius: 4px;
+            font-family: inherit;
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🛡️ Visitor Logs - Admin Panel</h1>
+        <p>Monitor and analyze website visitor activity</p>
+    </div>
+
+    <div class="stats" id="stats">
+        <div class="stat-card">
+            <div class="stat-number" id="totalLogs">-</div>
+            <div>Total Visits</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number" id="todayLogs">-</div>
+            <div>Today's Visits</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number" id="uniqueIPs">-</div>
+            <div>Unique IPs</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number" id="topCountry">-</div>
+            <div>Top Country</div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <h3>Controls</h3>
+        <button onclick="refreshLogs()">🔄 Refresh</button>
+        <button onclick="clearLogs()">🗑️ Clear All Logs</button>
+        <button onclick="exportLogs('json')">📤 Export JSON</button>
+        <button onclick="exportLogs('csv')">📤 Export CSV</button>
+        
+        <div style="margin-top: 15px;">
+            <label>Filter by Path:</label>
+            <input type="text" class="filter-input" id="pathFilter" placeholder="e.g., /json" onkeyup="filterLogs()">
+            
+            <label>Filter by Country:</label>
+            <input type="text" class="filter-input" id="countryFilter" placeholder="e.g., US" onkeyup="filterLogs()">
+            
+            <label>Limit:</label>
+            <select class="filter-input" id="limitSelect" onchange="refreshLogs()">
+                <option value="100">100</option>
+                <option value="500">500</option>
+                <option value="1000">1000</option>
+                <option value="all">All</option>
+            </select>
+        </div>
+        
+        <div class="refresh-info" id="lastRefresh">Last updated: Never</div>
+    </div>
+
+    <div class="loading" id="loading">Loading logs...</div>
+
+    <table class="logs-table" id="logsTable" style="display: none;">
+        <thead>
+            <tr>
+                <th>Timestamp</th>
+                <th>Path</th>
+                <th>IP</th>
+                <th>Country</th>
+                <th>City</th>
+                <th>User Agent</th>
+                <th>Referrer</th>
+                <th>Method</th>
+            </tr>
+        </thead>
+        <tbody id="logsBody">
+        </tbody>
+    </table>
+
+    <script>
+        let allLogs = [];
+        let filteredLogs = [];
+
+        async function refreshLogs() {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('logsTable').style.display = 'none';
+            
+            try {
+                const limit = document.getElementById('limitSelect').value;
+                const url = window.location.pathname + '/api/logs' + (limit !== 'all' ? '?limit=' + limit : '');
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                allLogs = data.logs || [];
+                updateStats(data.stats || {});
+                filterLogs();
+                
+                document.getElementById('lastRefresh').textContent = 'Last updated: ' + new Date().toLocaleString();
+            } catch (error) {
+                console.error('Error fetching logs:', error);
+                alert('Error fetching logs: ' + error.message);
+            }
+            
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('logsTable').style.display = 'table';
+        }
+
+        function updateStats(stats) {
+            document.getElementById('totalLogs').textContent = stats.total || 0;
+            document.getElementById('todayLogs').textContent = stats.today || 0;
+            document.getElementById('uniqueIPs').textContent = stats.uniqueIPs || 0;
+            document.getElementById('topCountry').textContent = stats.topCountry || '-';
+        }
+
+        function filterLogs() {
+            const pathFilter = document.getElementById('pathFilter').value.toLowerCase();
+            const countryFilter = document.getElementById('countryFilter').value.toLowerCase();
+            
+            filteredLogs = allLogs.filter(log => {
+                const matchesPath = !pathFilter || log.path.toLowerCase().includes(pathFilter);
+                const matchesCountry = !countryFilter || (log.country && log.country.toLowerCase().includes(countryFilter));
+                return matchesPath && matchesCountry;
+            });
+            
+            renderLogs();
+        }
+
+        function renderLogs() {
+            const tbody = document.getElementById('logsBody');
+            tbody.innerHTML = '';
+            
+            filteredLogs.forEach(log => {
+                const row = tbody.insertRow();
+                row.innerHTML = 
+                    '<td class="timestamp">' + new Date(log.timestamp).toLocaleString() + '</td>' +
+                    '<td class="path">' + (log.path || '-') + '</td>' +
+                    '<td class="ip">' + (log.ip || '-') + '</td>' +
+                    '<td class="country">' + (log.country || '-') + (log.cf_ipcountry ? ' (' + log.cf_ipcountry + ')' : '') + '</td>' +
+                    '<td>' + (log.city || '-') + '</td>' +
+                    '<td title="' + (log.user_agent || '') + '">' + truncate(log.user_agent || '-', 50) + '</td>' +
+                    '<td title="' + (log.referrer || '') + '">' + truncate(log.referrer || '-', 30) + '</td>' +
+                    '<td>' + (log.method || '-') + '</td>';
+            });
+        }
+
+        function truncate(str, length) {
+            return str.length > length ? str.substring(0, length) + '...' : str;
+        }
+
+        async function clearLogs() {
+            if (!confirm('Are you sure you want to clear all logs? This cannot be undone.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(window.location.pathname + '/api/clear', {
+                    method: 'POST'
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('Logs cleared successfully');
+                    refreshLogs();
+                } else {
+                    alert('Error clearing logs: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error clearing logs: ' + error.message);
+            }
+        }
+
+        async function exportLogs(format) {
+            try {
+                const response = await fetch(window.location.pathname + '/api/export?format=' + format);
+                const blob = await response.blob();
+                
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'visitor_logs_' + new Date().toISOString().split('T')[0] + '.' + format;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+            } catch (error) {
+                alert('Error exporting logs: ' + error.message);
+            }
+        }
+
+        // Auto-refresh every 30 seconds
+        setInterval(refreshLogs, 30000);
+
+        // Initial load
+        refreshLogs();
+    </script>
+</body>
+</html>`
+  };
+  
+  return staticFiles[path] || null;
+}
+
 // Function to convert filteredJson to CSV
 function jsonToCsv(json) {
+    if (!Array.isArray(json) || json.length === 0) return '';
+    
     let csv = '';
     // Extract keys from the first object in the array
     const keys = Object.keys(json[0]);
@@ -20,7 +546,14 @@ function jsonToCsv(json) {
     csv += keys.join(',') + '\n';
     // Write data rows
     json.forEach(item => {
-        const values = keys.map(key => item[key]);
+        const values = keys.map(key => {
+            let value = item[key] || '';
+            // Escape commas and quotes in CSV
+            if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
+                value = '"' + value.replace(/"/g, '""') + '"';
+            }
+            return value;
+        });
         csv += values.join(',') + '\n';
     });
     return csv;
@@ -71,6 +604,7 @@ function jsonToHtml(json) {
   html += '</table>\n</body>\n</html>';
   return html;
 }
+
 // Function to check if a string is a URL or IPv6 address
 function isURL(str) {
   const urlPattern = new RegExp('^(https?:\\/\\/)?'+ // protocol
@@ -121,41 +655,206 @@ var CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*"
 };
 
-// Main Func
-var src_default = {
-  fetch(request) {
-    const ip = request.headers.get("x-real-ip");
-    const userAgent = request.headers.get("user-agent");
-    //Other Headers can also be extracted from response
-    //cf-connecting-ip --> IP of Request Initiator
-    //cf-ipcountry --> Country Code of Request Initiator
-    //x-real-ip --> Real IP of Request Initiator
-    //accept-language --> Locale of Request Initiator (example: en-US,en;q=0.5)
-    const { pathname } = new URL(request.url);
+// Database initialization
+async function initializeDatabase(env) {
+  try {
+    // Create tables if they don't exist
+    await env.DB.exec(`
+      CREATE TABLE IF NOT EXISTS visitor_logs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          timestamp TEXT NOT NULL,
+          ip TEXT,
+          path TEXT NOT NULL,
+          user_agent TEXT,
+          referrer TEXT,
+          accept_language TEXT,
+          cf_connecting_ip TEXT,
+          cf_ipcountry TEXT,
+          cf_ray TEXT,
+          x_real_ip TEXT,
+          x_forwarded_for TEXT,
+          city TEXT,
+          country TEXT,
+          region TEXT,
+          latitude TEXT,
+          longitude TEXT,
+          org TEXT,
+          timezone TEXT,
+          method TEXT,
+          host TEXT,
+          query_string TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_timestamp ON visitor_logs(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_path ON visitor_logs(path);
+      CREATE INDEX IF NOT EXISTS idx_ip ON visitor_logs(ip);
+    `);
+  } catch (error) {
+    console.error('Database initialization error:', error);
+  }
+}
+
+// Admin API handlers
+async function handleAdminAPI(request, env, pathname) {
+  const url = new URL(request.url);
+  const apiPath = pathname.replace(ADMIN_PATH, '');
+  
+  if (apiPath === '/api/logs') {
+    const limit = url.searchParams.get('limit') || '100';
+    let query = 'SELECT * FROM visitor_logs ORDER BY timestamp DESC';
+    
+    if (limit !== 'all') {
+      query += ` LIMIT ${parseInt(limit)}`;
+    }
+    
+    const result = await env.DB.prepare(query).all();
+    
+    // Get stats
+    const statsQueries = await Promise.all([
+      env.DB.prepare('SELECT COUNT(*) as total FROM visitor_logs').first(),
+      env.DB.prepare(`SELECT COUNT(*) as today FROM visitor_logs WHERE date(timestamp) = date('now')`).first(),
+      env.DB.prepare('SELECT COUNT(DISTINCT ip) as uniqueIPs FROM visitor_logs').first(),
+      env.DB.prepare(`SELECT country, COUNT(*) as count FROM visitor_logs WHERE country IS NOT NULL GROUP BY country ORDER BY count DESC LIMIT 1`).first()
+    ]);
+    
+    const stats = {
+      total: statsQueries[0]?.total || 0,
+      today: statsQueries[1]?.today || 0,
+      uniqueIPs: statsQueries[2]?.uniqueIPs || 0,
+      topCountry: statsQueries[3]?.country || '-'
+    };
+    
+    return new Response(JSON.stringify({
+      logs: result.results || [],
+      stats
+    }), {
+      headers: {
+        ...CORS_HEADERS,
+        "Content-Type": "application/json"
+      }
+    });
+  }
+  
+  if (apiPath === '/api/clear' && request.method === 'POST') {
+    try {
+      await env.DB.prepare('DELETE FROM visitor_logs').run();
+      return new Response(JSON.stringify({ success: true }), {
+        headers: {
+          ...CORS_HEADERS,
+          "Content-Type": "application/json"
+        }
+      });
+    } catch (error) {
+      return new Response(JSON.stringify({ success: false, error: error.message }), {
+        headers: {
+          ...CORS_HEADERS,
+          "Content-Type": "application/json"
+        }
+      });
+    }
+  }
+  
+  if (apiPath === '/api/export') {
+    const format = url.searchParams.get('format') || 'json';
+    const result = await env.DB.prepare('SELECT * FROM visitor_logs ORDER BY timestamp DESC').all();
+    
+    let content, contentType, filename;
+    
+    if (format === 'csv') {
+      content = jsonToCsv(result.results || []);
+      contentType = 'text/csv';
+      filename = `visitor_logs_${new Date().toISOString().split('T')[0]}.csv`;
+    } else {
+      content = JSON.stringify(result.results || [], null, 2);
+      contentType = 'application/json';
+      filename = `visitor_logs_${new Date().toISOString().split('T')[0]}.json`;
+    }
+    
+    return new Response(content, {
+      headers: {
+        ...CORS_HEADERS,
+        "Content-Type": contentType,
+        "Content-Disposition": `attachment; filename="${filename}"`
+      }
+    });
+  }
+  
+  return new Response('Not Found', { status: 404 });
+}
+
+// Main worker
+export default {
+  async fetch(request, env) {
+    // Initialize database on first request
+    await initializeDatabase(env);
+    
+    const url = new URL(request.url);
+    const { pathname } = url;
+    
+    // Handle admin panel
+    if (pathname.startsWith(ADMIN_PATH)) {
+      if (pathname === ADMIN_PATH || pathname === ADMIN_PATH + '/') {
+        const adminHtml = await serveStaticFile('/static/admin.html');
+        return new Response(adminHtml, {
+          headers: {
+            "Content-Type": "text/html;charset=utf-8"
+          }
+        });
+      }
+      
+      if (pathname.startsWith(ADMIN_PATH + '/api/')) {
+        return handleAdminAPI(request, env, pathname);
+      }
+    }
+    
+    // Log visitor (for all non-admin requests)
+    if (!pathname.startsWith(ADMIN_PATH)) {
+      await logVisitor(request, env);
+    }
+    
+    // Serve static site for root paths
+    const staticPath = STATIC_FILES[pathname];
+    if (staticPath) {
+      const content = await serveStaticFile(staticPath);
+      if (content) {
+        return new Response(content, {
+          headers: {
+            "Content-Type": "text/html;charset=utf-8"
+          }
+        });
+      }
+    }
+    
+    // Original IP API functionality
+    const headers = extractHeaders(request);
+    const ip = headers.cf_connecting_ip || headers.x_real_ip || request.headers.get("x-real-ip");
+    const userAgent = headers.user_agent;
+    
     console.log(ip, pathname);
 
-   //Generate JSON 
+    //Generate JSON 
     const json = {
       "ip": ip,
-      "city": request.cf.city,
-      "country": request.cf.country,
-      "flag": getFlag(request.cf.country),
-      "region": request.cf.region,
-      "latitude": request.cf.latitude,
-      "longitude": request.cf.longitude,
-      "org": request.cf.asOrganization,
-      "timezone": request.cf.timezone,
+      "city": request.cf?.city,
+      "country": request.cf?.country,
+      "flag": getFlag(request.cf?.country),
+      "region": request.cf?.region,
+      "latitude": request.cf?.latitude,
+      "longitude": request.cf?.longitude,
+      "org": request.cf?.asOrganization,
+      "timezone": request.cf?.timezone,
       "user-agent": userAgent,
       "readme": "https://github.com/pkgforge-dev/ip.pkgforge.dev"
     };
 
-   // Filter out undefined values
+    // Filter out undefined values
     const filteredJson = Object.fromEntries(
       Object.entries(json).filter(([key, value]) => value !== undefined)
     );
 
-   //Print csv if request is to ip.pkgforge.dev/csv
-   if (pathname === "/csv") {
+    //Print csv if request is to ip.pkgforge.dev/csv
+    if (pathname === "/csv") {
         const csvStr = jsonToCsv([filteredJson]);
         console.log(csvStr);
         return new Response(csvStr, {
@@ -165,11 +864,11 @@ var src_default = {
         }
     });
 
-   //Print html if request is to ip.pkgforge.dev/html
+    //Print html if request is to ip.pkgforge.dev/html
     } else if (pathname === "/html") {
         let htmlStr = jsonToHtml(filteredJson);
         console.log(htmlStr);
-        const endpointsRow = `<tr><td>endpoints</td><td><a href="https://ip.pkgforge.dev/csv">/csv</a> <a href="https://ip.pkgforge.dev/ip">/ip</a> <a href="https://ip.pkgforge.dev/json">/json</a> <a href="https://ip.pkgforge.dev/text">/text</a> <a href="https://ip.pkgforge.dev/xml">/xml</a> <a href="https://ip.pkgforge.dev/yaml">/yaml</a></td></tr>`;
+        const endpointsRow = `<tr><td>endpoints</td><td><a href="/csv">/csv</a> <a href="/api">/api</a> <a href="/json">/json</a> <a href="/text">/text</a> <a href="/xml">/xml</a> <a href="/yaml">/yaml</a></td></tr>`;
         htmlStr = htmlStr.replace('</table>\n</body>\n</html>', `${endpointsRow}</table>\n</body>\n</html>`);
         return new Response(htmlStr, {
             headers: {
@@ -178,7 +877,7 @@ var src_default = {
             }
         });
 
-   //Print json if request is to ip.pkgforge.dev/json
+    //Print json if request is to ip.pkgforge.dev/json
     } else if (pathname === "/json") {
         console.log(filteredJson);
         const jsonResponse = JSON.stringify(filteredJson);
@@ -189,7 +888,7 @@ var src_default = {
             }
         });
 
-   //Print text if request is to ip.pkgforge.dev/text        
+    //Print text if request is to ip.pkgforge.dev/text        
     } else if (pathname === "/text") {
         const textEntries = Object.entries(filteredJson)
         .map(([key, value]) => `${key}=${value}`);
@@ -202,8 +901,8 @@ var src_default = {
           }
         });
 
-   //Print xml if request is to ip.pkgforge.dev/xml
-    } else if (pathname === "/xml") { // Add XML handling
+    //Print xml if request is to ip.pkgforge.dev/xml
+    } else if (pathname === "/xml") {
         const xmlStr = jsonToXml(filteredJson);
         console.log(xmlStr);
         return new Response(xmlStr, {
@@ -213,12 +912,9 @@ var src_default = {
           }
         });
 
-   //Print yaml if request is to ip.pkgforge.dev/yaml  
+    //Print yaml if request is to ip.pkgforge.dev/yaml  
     } else if (pathname === "/yaml") {
-      const yamlStr = jsonToYaml({
-        ip,
-        ...json
-      });
+      const yamlStr = jsonToYaml(filteredJson);
       console.log(yamlStr);
       return new Response(yamlStr, {
         headers: {
@@ -228,18 +924,23 @@ var src_default = {
       });
     }
 
-   //Print plain text IP Only if request is to ip.pkgforge.dev without any path suffix
-    return new Response(ip, {
+    //Print plain text IP Only if request is to ip.pkgforge.dev without any path suffix or /api
+    if (pathname === "/api" || pathname === "/ip") {
+      return new Response(ip, {
+        headers: {
+          ...CORS_HEADERS,
+          "Content-Type": "text/plain",
+          "x-client-ip": ip
+        }
+      });
+    }
+
+    // Default: serve the static home page for unmatched routes
+    const homeContent = await serveStaticFile('/static/index.html');
+    return new Response(homeContent, {
       headers: {
-        ...CORS_HEADERS,
-        "Content-Type": "text/plain",
-        "x-client-ip": ip
+        "Content-Type": "text/html;charset=utf-8"
       }
     });
   }
 };
-
-export {
-  src_default as default
-};
-//# sourceMappingURL=index.js.map

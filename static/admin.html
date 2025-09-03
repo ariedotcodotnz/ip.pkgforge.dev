@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visitor Logs - Admin Panel</title>
+    <style>
+        body {
+            background-color: #0d0e0e;
+            color: #f2f0ec;
+            font-family: 'Courier New', monospace;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #3b4043;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .controls {
+            background-color: #1b1d1e;
+            border: 1px solid #3b4043;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background-color: #1b1d1e;
+            border: 1px solid #3b4043;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 2em;
+            color: #4ca5ff;
+            font-weight: bold;
+        }
+        .logs-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background-color: #1b1d1e;
+        }
+        .logs-table th,
+        .logs-table td {
+            border: 1px solid #3b4043;
+            padding: 8px;
+            text-align: left;
+            font-size: 12px;
+        }
+        .logs-table th {
+            background-color: #2a2d2e;
+            color: #f2f0ec;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+        }
+        .logs-table tbody tr:hover {
+            background-color: #2a2d2e;
+        }
+        .timestamp {
+            color: #c4c1ba;
+            white-space: nowrap;
+        }
+        .path {
+            color: #4ca5ff;
+            font-weight: bold;
+        }
+        .ip {
+            color: #90c695;
+        }
+        .country {
+            color: #f4a261;
+        }
+        button {
+            background-color: #4ca5ff;
+            color: #0d0e0e;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #3a8ae8;
+        }
+        .refresh-info {
+            color: #c4c1ba;
+            font-size: 12px;
+            margin: 10px 0;
+        }
+        .loading {
+            text-align: center;
+            color: #4ca5ff;
+            margin: 20px 0;
+        }
+        .filter-input {
+            background-color: #0d0e0e;
+            color: #f2f0ec;
+            border: 1px solid #3b4043;
+            padding: 8px;
+            border-radius: 4px;
+            font-family: inherit;
+            margin: 5px;
+        }
+        .export-section {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #1b1d1e;
+            border: 1px solid #3b4043;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🛡️ Visitor Logs - Admin Panel</h1>
+        <p>Monitor and analyze website visitor activity</p>
+    </div>
+
+    <div class="stats" id="stats">
+        <div class="stat-card">
+            <div class="stat-number" id="totalLogs">-</div>
+            <div>Total Visits</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number" id="todayLogs">-</div>
+            <div>Today's Visits</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number" id="uniqueIPs">-</div>
+            <div>Unique IPs</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number" id="topCountry">-</div>
+            <div>Top Country</div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <h3>Controls</h3>
+        <button onclick="refreshLogs()">🔄 Refresh</button>
+        <button onclick="clearLogs()">🗑️ Clear All Logs</button>
+        <button onclick="exportLogs('json')">📤 Export JSON</button>
+        <button onclick="exportLogs('csv')">📤 Export CSV</button>
+        
+        <div style="margin-top: 15px;">
+            <label>Filter by Path:</label>
+            <input type="text" class="filter-input" id="pathFilter" placeholder="e.g., /json" onkeyup="filterLogs()">
+            
+            <label>Filter by Country:</label>
+            <input type="text" class="filter-input" id="countryFilter" placeholder="e.g., US" onkeyup="filterLogs()">
+            
+            <label>Limit:</label>
+            <select class="filter-input" id="limitSelect" onchange="refreshLogs()">
+                <option value="100">100</option>
+                <option value="500">500</option>
+                <option value="1000">1000</option>
+                <option value="all">All</option>
+            </select>
+        </div>
+        
+        <div class="refresh-info" id="lastRefresh">Last updated: Never</div>
+    </div>
+
+    <div class="export-section">
+        <h3>Real-time Analytics</h3>
+        <div id="topPaths"></div>
+        <div id="topCountries"></div>
+    </div>
+
+    <div class="loading" id="loading">Loading logs...</div>
+
+    <table class="logs-table" id="logsTable" style="display: none;">
+        <thead>
+            <tr>
+                <th>Timestamp</th>
+                <th>Path</th>
+                <th>IP</th>
+                <th>Country</th>
+                <th>City</th>
+                <th>User Agent</th>
+                <th>Referrer</th>
+                <th>Method</th>
+            </tr>
+        </thead>
+        <tbody id="logsBody">
+        </tbody>
+    </table>
+
+    <script>
+        let allLogs = [];
+        let filteredLogs = [];
+
+        async function refreshLogs() {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('logsTable').style.display = 'none';
+            
+            try {
+                const limit = document.getElementById('limitSelect').value;
+                const url = window.location.pathname + '/api/logs' + (limit !== 'all' ? `?limit=${limit}` : '');
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                allLogs = data.logs || [];
+                updateStats(data.stats || {});
+                updateAnalytics(data.analytics || {});
+                filterLogs();
+                
+                document.getElementById('lastRefresh').textContent = `Last updated: ${new Date().toLocaleString()}`;
+            } catch (error) {
+                console.error('Error fetching logs:', error);
+                alert('Error fetching logs: ' + error.message);
+            }
+            
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('logsTable').style.display = 'table';
+        }
+
+        function updateStats(stats) {
+            document.getElementById('totalLogs').textContent = stats.total || 0;
+            document.getElementById('todayLogs').textContent = stats.today || 0;
+            document.getElementById('uniqueIPs').textContent = stats.uniqueIPs || 0;
+            document.getElementById('topCountry').textContent = stats.topCountry || '-';
+        }
+
+        function updateAnalytics(analytics) {
+            const topPaths = analytics.topPaths || [];
+            const topCountries = analytics.topCountries || [];
+            
+            document.getElementById('topPaths').innerHTML = 
+                '<h4>Top Paths:</h4>' + 
+                topPaths.map(item => `<div>${item.path}: ${item.count} visits</div>`).join('');
+                
+            document.getElementById('topCountries').innerHTML = 
+                '<h4>Top Countries:</h4>' + 
+                topCountries.map(item => `<div>${item.country}: ${item.count} visits</div>`).join('');
+        }
+
+        function filterLogs() {
+            const pathFilter = document.getElementById('pathFilter').value.toLowerCase();
+            const countryFilter = document.getElementById('countryFilter').value.toLowerCase();
+            
+            filteredLogs = allLogs.filter(log => {
+                const matchesPath = !pathFilter || log.path.toLowerCase().includes(pathFilter);
+                const matchesCountry = !countryFilter || (log.country && log.country.toLowerCase().includes(countryFilter));
+                return matchesPath && matchesCountry;
+            });
+            
+            renderLogs();
+        }
+
+        function renderLogs() {
+            const tbody = document.getElementById('logsBody');
+            tbody.innerHTML = '';
+            
+            filteredLogs.forEach(log => {
+                const row = tbody.insertRow();
+                row.innerHTML = `
+                    <td class="timestamp">${new Date(log.timestamp).toLocaleString()}</td>
+                    <td class="path">${log.path || '-'}</td>
+                    <td class="ip">${log.ip || '-'}</td>
+                    <td class="country">${log.country || '-'} ${log.cf_ipcountry ? '(' + log.cf_ipcountry + ')' : ''}</td>
+                    <td>${log.city || '-'}</td>
+                    <td title="${log.user_agent || ''}">${truncate(log.user_agent || '-', 50)}</td>
+                    <td title="${log.referrer || ''}">${truncate(log.referrer || '-', 30)}</td>
+                    <td>${log.method || '-'}</td>
+                `;
+            });
+        }
+
+        function truncate(str, length) {
+            return str.length > length ? str.substring(0, length) + '...' : str;
+        }
+
+        async function clearLogs() {
+            if (!confirm('Are you sure you want to clear all logs? This cannot be undone.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(window.location.pathname + '/api/clear', {
+                    method: 'POST'
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('Logs cleared successfully');
+                    refreshLogs();
+                } else {
+                    alert('Error clearing logs: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error clearing logs: ' + error.message);
+            }
+        }
+
+        async function exportLogs(format) {
+            try {
+                const response = await fetch(window.location.pathname + `/api/export?format=${format}`);
+                const blob = await response.blob();
+                
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `visitor_logs_${new Date().toISOString().split('T')[0]}.${format}`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+            } catch (error) {
+                alert('Error exporting logs: ' + error.message);
+            }
+        }
+
+        // Auto-refresh every 30 seconds
+        setInterval(refreshLogs, 30000);
+
+        // Initial load
+        refreshLogs();
+    </script>
+</body>
+</html>
