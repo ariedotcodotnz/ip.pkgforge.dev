@@ -177,6 +177,8 @@ dist
 
 # Static site build artifacts
 static-files.js
+build-static.js
+public/
 
 # Test files
 test_*.js

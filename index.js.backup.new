@@ -95,9 +95,131 @@ async function logVisitor(request, env) {
   }
 }
 
-// Function to generate admin panel HTML
-function getAdminHTML() {
-  return `<!DOCTYPE html>
+// Function to serve static files
+async function serveStaticFile(path) {
+  const staticFiles = {
+    '/static/index.html': `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IP Info Service</title>
+    <style>
+        body {
+            background-color: #0d0e0e;
+            color: #f2f0ec;
+            font-family: 'Courier New', monospace;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #3b4043;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .endpoint {
+            background-color: #1b1d1e;
+            border: 1px solid #3b4043;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .endpoint h3 {
+            color: #4ca5ff;
+            margin-top: 0;
+        }
+        .endpoint code {
+            background-color: #0d0e0e;
+            padding: 2px 6px;
+            border-radius: 3px;
+            color: #c4c1ba;
+        }
+        .example {
+            background-color: #0d0e0e;
+            padding: 10px;
+            border-radius: 3px;
+            margin: 10px 0;
+            overflow-x: auto;
+        }
+        a {
+            color: #4ca5ff;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            border-top: 1px solid #3b4043;
+            padding-top: 20px;
+            color: #c4c1ba;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🌐 IP Information Service</h1>
+        <p>Get your IP address and geolocation information in multiple formats</p>
+    </div>
+
+    <div class="endpoint">
+        <h3>Simple IP Address</h3>
+        <p>Returns your IP address in plain text:</p>
+        <div class="example">
+            <code>curl https://ip.pkgforge.dev</code>
+        </div>
+        <p><a href="/api">Try it →</a></p>
+    </div>
+
+    <div class="endpoint">
+        <h3>Detailed Information (JSON)</h3>
+        <p>Returns comprehensive information including geolocation:</p>
+        <div class="example">
+            <code>curl https://ip.pkgforge.dev/json</code>
+        </div>
+        <p><a href="/json">Try it →</a></p>
+    </div>
+
+    <div class="endpoint">
+        <h3>CSV Format</h3>
+        <p>Machine-readable CSV format:</p>
+        <div class="example">
+            <code>curl https://ip.pkgforge.dev/csv</code>
+        </div>
+        <p><a href="/csv">Try it →</a></p>
+    </div>
+
+    <div class="endpoint">
+        <h3>HTML View</h3>
+        <p>Formatted HTML table view:</p>
+        <div class="example">
+            <code>curl https://ip.pkgforge.dev/html</code>
+        </div>
+        <p><a href="/html">Try it →</a></p>
+    </div>
+
+    <div class="endpoint">
+        <h3>Other Formats</h3>
+        <p>Available formats:</p>
+        <ul>
+            <li><a href="/text">Text</a> - Key=value pairs</li>
+            <li><a href="/xml">XML</a> - Structured XML</li>
+            <li><a href="/yaml">YAML</a> - Human-readable YAML</li>
+        </ul>
+    </div>
+
+    <div class="footer">
+        <p>Powered by Cloudflare Workers | <a href="https://github.com/pkgforge-dev/ip.pkgforge.dev">Source Code</a></p>
+    </div>
+</body>
+</html>`,
+    
+    '/static/admin.html': `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -119,59 +241,29 @@ function getAdminHTML() {
             margin-bottom: 30px;
         }
         .controls {
-            margin: 20px 0;
-            text-align: center;
-        }
-        .controls button {
-            background-color: #4ca5ff;
-            color: #0d0e0e;
-            border: none;
-            padding: 10px 20px;
-            margin: 0 10px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: bold;
-        }
-        .controls button:hover {
-            background-color: #3a94ff;
-        }
-        .controls button.danger {
-            background-color: #ff4757;
-            color: white;
-        }
-        .controls button.danger:hover {
-            background-color: #ff3838;
-        }
-        .stats {
-            display: flex;
-            justify-content: space-around;
-            margin: 30px 0;
-            flex-wrap: wrap;
-        }
-        .stat-box {
             background-color: #1b1d1e;
             border: 1px solid #3b4043;
-            padding: 20px;
-            margin: 10px;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background-color: #1b1d1e;
+            border: 1px solid #3b4043;
+            padding: 15px;
             border-radius: 5px;
             text-align: center;
-            min-width: 150px;
         }
         .stat-number {
             font-size: 2em;
             color: #4ca5ff;
             font-weight: bold;
-        }
-        .stat-label {
-            color: #c4c1ba;
-            margin-top: 5px;
-        }
-        .logs-container {
-            background-color: #1b1d1e;
-            border: 1px solid #3b4043;
-            border-radius: 5px;
-            max-height: 600px;
-            overflow-y: auto;
         }
         .logs-table {
             width: 100%;
@@ -208,108 +300,176 @@ function getAdminHTML() {
             color: #90c695;
         }
         .country {
-            color: #ffab2e;
+            color: #f4a261;
+        }
+        button {
+            background-color: #4ca5ff;
+            color: #0d0e0e;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #3a8ae8;
+        }
+        .refresh-info {
+            color: #c4c1ba;
+            font-size: 12px;
+            margin: 10px 0;
         }
         .loading {
             text-align: center;
-            padding: 40px;
-            color: #c4c1ba;
+            color: #4ca5ff;
+            margin: 20px 0;
         }
-        .error {
-            color: #ff4757;
-            text-align: center;
-            padding: 20px;
+        .filter-input {
+            background-color: #0d0e0e;
+            color: #f2f0ec;
+            border: 1px solid #3b4043;
+            padding: 8px;
+            border-radius: 4px;
+            font-family: inherit;
+            margin: 5px;
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>📊 Visitor Analytics Dashboard</h1>
-        <p>Real-time visitor tracking and analytics</p>
+        <h1>🛡️ Visitor Logs - Admin Panel</h1>
+        <p>Monitor and analyze website visitor activity</p>
     </div>
 
     <div class="stats" id="stats">
-        <div class="stat-box">
-            <div class="stat-number" id="totalVisits">-</div>
-            <div class="stat-label">Total Visits</div>
+        <div class="stat-card">
+            <div class="stat-number" id="totalLogs">-</div>
+            <div>Total Visits</div>
         </div>
-        <div class="stat-box">
+        <div class="stat-card">
+            <div class="stat-number" id="todayLogs">-</div>
+            <div>Today's Visits</div>
+        </div>
+        <div class="stat-card">
             <div class="stat-number" id="uniqueIPs">-</div>
-            <div class="stat-label">Unique IPs</div>
+            <div>Unique IPs</div>
         </div>
-        <div class="stat-box">
+        <div class="stat-card">
             <div class="stat-number" id="topCountry">-</div>
-            <div class="stat-label">Top Country</div>
-        </div>
-        <div class="stat-box">
-            <div class="stat-number" id="todayVisits">-</div>
-            <div class="stat-label">Today's Visits</div>
+            <div>Top Country</div>
         </div>
     </div>
 
     <div class="controls">
+        <h3>Controls</h3>
         <button onclick="refreshLogs()">🔄 Refresh</button>
-        <button onclick="exportLogs('csv')">📥 Export CSV</button>
-        <button onclick="exportLogs('json')">📥 Export JSON</button>
-        <button onclick="clearLogs()" class="danger">🗑️ Clear All Logs</button>
+        <button onclick="clearLogs()">🗑️ Clear All Logs</button>
+        <button onclick="exportLogs('json')">📤 Export JSON</button>
+        <button onclick="exportLogs('csv')">📤 Export CSV</button>
+        
+        <div style="margin-top: 15px;">
+            <label>Filter by Path:</label>
+            <input type="text" class="filter-input" id="pathFilter" placeholder="e.g., /json" onkeyup="filterLogs()">
+            
+            <label>Filter by Country:</label>
+            <input type="text" class="filter-input" id="countryFilter" placeholder="e.g., US" onkeyup="filterLogs()">
+            
+            <label>Limit:</label>
+            <select class="filter-input" id="limitSelect" onchange="refreshLogs()">
+                <option value="100">100</option>
+                <option value="500">500</option>
+                <option value="1000">1000</option>
+                <option value="all">All</option>
+            </select>
+        </div>
+        
+        <div class="refresh-info" id="lastRefresh">Last updated: Never</div>
     </div>
 
-    <div class="logs-container">
-        <table class="logs-table">
-            <thead>
-                <tr>
-                    <th>Timestamp</th>
-                    <th>Path</th>
-                    <th>IP Address</th>
-                    <th>Country</th>
-                    <th>City</th>
-                    <th>User Agent</th>
-                    <th>Referrer</th>
-                    <th>Method</th>
-                </tr>
-            </thead>
-            <tbody id="logsTable">
-                <tr>
-                    <td colspan="8" class="loading">Loading visitor logs...</td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
+    <div class="loading" id="loading">Loading logs...</div>
+
+    <table class="logs-table" id="logsTable" style="display: none;">
+        <thead>
+            <tr>
+                <th>Timestamp</th>
+                <th>Path</th>
+                <th>IP</th>
+                <th>Country</th>
+                <th>City</th>
+                <th>User Agent</th>
+                <th>Referrer</th>
+                <th>Method</th>
+            </tr>
+        </thead>
+        <tbody id="logsBody">
+        </tbody>
+    </table>
 
     <script>
+        let allLogs = [];
+        let filteredLogs = [];
+
         async function refreshLogs() {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('logsTable').style.display = 'none';
+            
             try {
-                const response = await fetch(window.location.pathname + '/api/logs');
+                const limit = document.getElementById('limitSelect').value;
+                const url = window.location.pathname + '/api/logs' + (limit !== 'all' ? '?limit=' + limit : '');
+                const response = await fetch(url);
                 const data = await response.json();
                 
-                // Update stats
-                document.getElementById('totalVisits').textContent = data.total || 0;
-                document.getElementById('uniqueIPs').textContent = data.unique_ips || 0;
-                document.getElementById('topCountry').textContent = data.top_country || '-';
-                document.getElementById('todayVisits').textContent = data.today_visits || 0;
+                allLogs = data.logs || [];
+                updateStats(data.stats || {});
+                filterLogs();
                 
-                // Update logs table
-                const logsTable = document.getElementById('logsTable');
-                if (data.logs && data.logs.length > 0) {
-                    logsTable.innerHTML = data.logs.map(log => 
-                        '<tr>' +
-                        '<td class="timestamp">' + (log.timestamp || '-') + '</td>' +
-                        '<td class="path">' + (log.path || '-') + '</td>' +
-                        '<td class="ip">' + (log.ip || '-') + '</td>' +
-                        '<td class="country">' + (log.country || '-') + (log.cf_ipcountry ? ' (' + log.cf_ipcountry + ')' : '') + '</td>' +
-                        '<td>' + (log.city || '-') + '</td>' +
-                        '<td title="' + (log.user_agent || '') + '">' + truncate(log.user_agent || '-', 50) + '</td>' +
-                        '<td title="' + (log.referrer || '') + '">' + truncate(log.referrer || '-', 30) + '</td>' +
-                        '<td>' + (log.method || '-') + '</td>' +
-                        '</tr>'
-                    ).join('');
-                } else {
-                    logsTable.innerHTML = '<tr><td colspan="8" class="loading">No visitor logs found</td></tr>';
-                }
+                document.getElementById('lastRefresh').textContent = 'Last updated: ' + new Date().toLocaleString();
             } catch (error) {
                 console.error('Error fetching logs:', error);
                 alert('Error fetching logs: ' + error.message);
             }
+            
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('logsTable').style.display = 'table';
+        }
+
+        function updateStats(stats) {
+            document.getElementById('totalLogs').textContent = stats.total || 0;
+            document.getElementById('todayLogs').textContent = stats.today || 0;
+            document.getElementById('uniqueIPs').textContent = stats.uniqueIPs || 0;
+            document.getElementById('topCountry').textContent = stats.topCountry || '-';
+        }
+
+        function filterLogs() {
+            const pathFilter = document.getElementById('pathFilter').value.toLowerCase();
+            const countryFilter = document.getElementById('countryFilter').value.toLowerCase();
+            
+            filteredLogs = allLogs.filter(log => {
+                const matchesPath = !pathFilter || log.path.toLowerCase().includes(pathFilter);
+                const matchesCountry = !countryFilter || (log.country && log.country.toLowerCase().includes(countryFilter));
+                return matchesPath && matchesCountry;
+            });
+            
+            renderLogs();
+        }
+
+        function renderLogs() {
+            const tbody = document.getElementById('logsBody');
+            tbody.innerHTML = '';
+            
+            filteredLogs.forEach(log => {
+                const row = tbody.insertRow();
+                row.innerHTML = 
+                    '<td class="timestamp">' + new Date(log.timestamp).toLocaleString() + '</td>' +
+                    '<td class="path">' + (log.path || '-') + '</td>' +
+                    '<td class="ip">' + (log.ip || '-') + '</td>' +
+                    '<td class="country">' + (log.country || '-') + (log.cf_ipcountry ? ' (' + log.cf_ipcountry + ')' : '') + '</td>' +
+                    '<td>' + (log.city || '-') + '</td>' +
+                    '<td title="' + (log.user_agent || '') + '">' + truncate(log.user_agent || '-', 50) + '</td>' +
+                    '<td title="' + (log.referrer || '') + '">' + truncate(log.referrer || '-', 30) + '</td>' +
+                    '<td>' + (log.method || '-') + '</td>';
+            });
         }
 
         function truncate(str, length) {
@@ -317,7 +477,7 @@ function getAdminHTML() {
         }
 
         async function clearLogs() {
-            if (!confirm('Are you sure you want to clear all visitor logs? This action cannot be undone.')) {
+            if (!confirm('Are you sure you want to clear all logs? This cannot be undone.')) {
                 return;
             }
             
@@ -325,12 +485,13 @@ function getAdminHTML() {
                 const response = await fetch(window.location.pathname + '/api/clear', {
                     method: 'POST'
                 });
+                const result = await response.json();
                 
-                if (response.ok) {
-                    alert('All logs cleared successfully');
+                if (result.success) {
+                    alert('Logs cleared successfully');
                     refreshLogs();
                 } else {
-                    alert('Error clearing logs');
+                    alert('Error clearing logs: ' + result.error);
                 }
             } catch (error) {
                 alert('Error clearing logs: ' + error.message);
@@ -344,9 +505,8 @@ function getAdminHTML() {
                 
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
-                a.style.display = 'none';
                 a.href = url;
-                a.download = 'visitor-logs.' + format;
+                a.download = 'visitor_logs_' + new Date().toISOString().split('T')[0] + '.' + format;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
@@ -363,8 +523,13 @@ function getAdminHTML() {
         refreshLogs();
     </script>
 </body>
-</html>`;
+</html>`
+  };
+  
+  return staticFiles[path] || null;
 }
+
+// Function to convert filteredJson to CSV
 function jsonToCsv(json) {
     if (!Array.isArray(json) || json.length === 0) return '';
     
@@ -624,7 +789,7 @@ export default {
     // Handle admin panel
     if (pathname.startsWith(ADMIN_PATH)) {
       if (pathname === ADMIN_PATH || pathname === ADMIN_PATH + '/') {
-        const adminHtml = getAdminHTML();
+        const adminHtml = await serveStaticFile('/static/admin.html');
         return new Response(adminHtml, {
           headers: {
             "Content-Type": "text/html;charset=utf-8"
@@ -640,6 +805,17 @@ export default {
     // Log visitor (for all non-admin requests)
     if (!pathname.startsWith(ADMIN_PATH)) {
       await logVisitor(request, env);
+    }
+    
+    // Try to serve static site files first (before API routes)
+    const staticFile = getStaticFile(pathname);
+    if (staticFile) {
+      return new Response(staticFile.content, {
+        headers: {
+          "Content-Type": staticFile.mimeType,
+          "Cache-Control": "public, max-age=3600", // Cache for 1 hour
+        }
+      });
     }
     
     // Original IP API functionality
@@ -751,14 +927,27 @@ export default {
       });
     }
 
-    // Default: Return JSON response for root and other unmatched routes
-    console.log(filteredJson);
-    const jsonResponse = JSON.stringify(filteredJson);
-    return new Response(jsonResponse, {
+    // Default: Return 404 for non-existent static files, or serve IP API info page
+    // Check if this looks like a static file request (has extension or specific patterns)
+    const hasExtension = pathname.includes('.') && !pathname.startsWith('/api');
+    const isLikelyStaticRequest = hasExtension || pathname.length > 1;
+    
+    if (isLikelyStaticRequest) {
+      // Return 404 for non-existent static files
+      return new Response('404 Not Found', { 
+        status: 404,
         headers: {
-            ...CORS_HEADERS,
-            "Content-Type": "application/json",
+          "Content-Type": "text/plain"
         }
+      });
+    }
+    
+    // For root and other unmatched routes, serve the IP API homepage
+    const homeContent = await serveStaticFile('/static/index.html');
+    return new Response(homeContent, {
+      headers: {
+        "Content-Type": "text/html;charset=utf-8"
+      }
     });
   }
 };
