@@ -1,12 +1,11 @@
 {
-  "name": "ip-api-static-hosting",
+  "name": "ip-api-worker",
   "version": "1.0.0",
-  "description": "Cloudflare Worker with IP API and static site hosting with visitor logging",
+  "description": "Cloudflare Worker with IP API and visitor logging",
   "main": "index.js",
   "scripts": {
-    "build-static": "node build-static.js",
     "dev": "wrangler dev --local",
-    "deploy": "npm run build-static && wrangler deploy",
+    "deploy": "wrangler deploy",
     "setup-db": "wrangler d1 execute visitor_logs --local --file=./schema.sql",
     "logs": "wrangler tail",
     "preview": "wrangler dev"
@@ -14,7 +13,6 @@
   "keywords": [
     "cloudflare-workers",
     "ip-api",
-    "static-hosting",
     "visitor-logging",
     "analytics"
   ],
