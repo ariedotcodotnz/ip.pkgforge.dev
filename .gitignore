@@ -174,3 +174,8 @@ dist
 
 .dev.vars
 .wrangler/
+
+# Test files
+test_*.js
+test_*.sh
+*.backup

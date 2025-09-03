@@ -8,3 +8,9 @@ logpush = true
 routes = [
     { pattern = "ip.pkgforge.dev/*", zone_name = "pkgforge.dev" }
 ]
+
+# D1 Database for visitor logs
+[[d1_databases]]
+binding = "DB"
+database_name = "visitor_logs"
+database_id = "visitor_logs"

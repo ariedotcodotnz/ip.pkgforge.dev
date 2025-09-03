@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IP Info Service</title>
+    <style>
+        body {
+            background-color: #0d0e0e;
+            color: #f2f0ec;
+            font-family: 'Courier New', monospace;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #3b4043;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .endpoint {
+            background-color: #1b1d1e;
+            border: 1px solid #3b4043;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .endpoint h3 {
+            color: #4ca5ff;
+            margin-top: 0;
+        }
+        .endpoint code {
+            background-color: #0d0e0e;
+            padding: 2px 6px;
+            border-radius: 3px;
+            color: #c4c1ba;
+        }
+        .example {
+            background-color: #0d0e0e;
+            padding: 10px;
+            border-radius: 3px;
+            margin: 10px 0;
+            overflow-x: auto;
+        }
+        a {
+            color: #4ca5ff;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            border-top: 1px solid #3b4043;
+            padding-top: 20px;
+            color: #c4c1ba;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🌐 IP Information Service</h1>
+        <p>Get your IP address and geolocation information in multiple formats</p>
+    </div>
+
+    <div class="endpoint">
+        <h3>Simple IP Address</h3>
+        <p>Returns your IP address in plain text:</p>
+        <div class="example">
+            <code>curl https://ip.pkgforge.dev</code>
+        </div>
+        <p><a href="/">Try it →</a></p>
+    </div>
+
+    <div class="endpoint">
+        <h3>Detailed Information (JSON)</h3>
+        <p>Returns comprehensive information including geolocation:</p>
+        <div class="example">
+            <code>curl https://ip.pkgforge.dev/json</code>
+        </div>
+        <p><a href="/json">Try it →</a></p>
+    </div>
+
+    <div class="endpoint">
+        <h3>CSV Format</h3>
+        <p>Machine-readable CSV format:</p>
+        <div class="example">
+            <code>curl https://ip.pkgforge.dev/csv</code>
+        </div>
+        <p><a href="/csv">Try it →</a></p>
+    </div>
+
+    <div class="endpoint">
+        <h3>HTML View</h3>
+        <p>Formatted HTML table view:</p>
+        <div class="example">
+            <code>curl https://ip.pkgforge.dev/html</code>
+        </div>
+        <p><a href="/html">Try it →</a></p>
+    </div>
+
+    <div class="endpoint">
+        <h3>Other Formats</h3>
+        <p>Available formats:</p>
+        <ul>
+            <li><a href="/text">Text</a> - Key=value pairs</li>
+            <li><a href="/xml">XML</a> - Structured XML</li>
+            <li><a href="/yaml">YAML</a> - Human-readable YAML</li>
+        </ul>
+    </div>
+
+    <div class="footer">
+        <p>Powered by Cloudflare Workers | <a href="https://github.com/pkgforge-dev/ip.pkgforge.dev">Source Code</a></p>
+    </div>
+</body>
+</html>

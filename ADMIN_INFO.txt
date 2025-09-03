@@ -1,0 +1,9 @@
+# Admin Panel Configuration
+# 
+# The admin panel URL will be randomly generated each deployment
+# Check the worker logs for the actual admin URL
+# 
+# Format: /admin-{random-string}
+# Example: /admin-xyz123abc
+#
+# This URL should be kept secret and not shared publicly
